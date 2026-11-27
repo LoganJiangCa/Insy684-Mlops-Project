@@ -1,0 +1,70 @@
+# Disposable API acceptance stack; Antonin integrates the API into the full stack.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mlops
+      POSTGRES_DB: mlops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD for this test}
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U mlops -d mlops"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  model-fixture:
+    build:
+      context: .
+      dockerfile: model_api/Dockerfile
+      target: test
+    command: [python, tests/model_api/register_model.py]
+    environment:
+      FIXTURE_DIR: /mlflow
+    volumes:
+      - fixture-model:/mlflow
+
+  api:
+    build:
+      context: .
+      dockerfile: model_api/Dockerfile
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql+psycopg://mlops:${POSTGRES_PASSWORD}@postgres:5432/mlops
+      MLFLOW_TRACKING_URI: sqlite:////mlflow/mlflow.db
+      MODEL_NAME: digits-decision-tree
+      MODEL_VERSION: "1"
+    volumes:
+      - fixture-model:/mlflow
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      model-fixture:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 5s
+      start_period: 30s
+      retries: 40
+
+  tests:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: model_api/Dockerfile
+      target: test
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://mlops:${POSTGRES_PASSWORD}@postgres:5432/mlops
+      API_URL: http://api:8000
+      FIXTURE_DIR: /mlflow
+    volumes:
+      - fixture-model:/mlflow:ro
+    command: [python, -m, pytest, tests/model_api/test_container.py, -v]
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  fixture-model:

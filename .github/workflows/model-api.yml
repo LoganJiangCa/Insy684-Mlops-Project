@@ -1,0 +1,55 @@
+name: Model API
+
+on:
+  push:
+    branches: [main, feature/model-api]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mlops
+          POSTGRES_PASSWORD: disposable-ci-password
+          POSTGRES_DB: api_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mlops -d api_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://mlops:disposable-ci-password@localhost:5432/api_test
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-api*.txt
+      - run: python -m pip install -r requirements-api-test.txt
+      - run: python -m pytest tests/model_api/test_api.py -v
+
+  container-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGRES_PASSWORD: disposable-ci-password
+    steps:
+      - uses: actions/checkout@v6
+      - name: Start API container with registered fixture and PostgreSQL
+        run: docker compose -f compose.api-test.yml up -d --build --wait --wait-timeout 240 api
+      - name: Call the API container and check database and metrics
+        run: docker compose -f compose.api-test.yml run --build --rm tests
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f compose.api-test.yml logs --no-color
+      - name: Remove disposable resources
+        if: always()
+        run: docker compose -f compose.api-test.yml down -v --remove-orphans
