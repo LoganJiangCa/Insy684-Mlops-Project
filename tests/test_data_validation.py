@@ -10,3 +10,9 @@ class TestTrainingData(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             validate_training_data(features, labels)
+
+    def test_accepts_matching_sample_and_label_counts(self):
+        features = [[10], [20], [30]]
+        labels = [0, 1, 0]
+
+        validate_training_data(features, labels)
