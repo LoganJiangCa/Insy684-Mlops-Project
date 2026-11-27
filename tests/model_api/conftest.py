@@ -1,10 +1,11 @@
+import json
 import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from register_model import register_fixture
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from model_api.app import Settings, create_app
 
@@ -30,16 +31,11 @@ def api(database_url, registered_model):
     app = create_app(Settings(database_url, tracking_uri))
     with TestClient(app) as client:
         yield client, app, sample
-    # Remove only the records made by this test; this database must be disposable.
-    engine = create_engine(database_url)
-    with engine.begin() as connection:
-        connection.execute(text("DELETE FROM prediction_logs"))
-    engine.dispose()
+        with app.state.engine.begin() as connection:
+            connection.execute(text("DELETE FROM prediction_logs"))
 
 
 @pytest.fixture(scope="session")
 def live_sample():
     directory = Path(os.environ.get("FIXTURE_DIR", "/mlflow"))
-    import json
-
     return json.loads((directory / "sample.json").read_text())

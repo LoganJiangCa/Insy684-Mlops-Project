@@ -1,5 +1,3 @@
-"""Prediction records shared with the monitoring pipeline."""
-
 from datetime import datetime
 from uuid import UUID
 

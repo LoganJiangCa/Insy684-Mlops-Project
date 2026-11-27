@@ -1,5 +1,3 @@
-"""A real HTTP call to the API container, then an independent PostgreSQL read."""
-
 import os
 from uuid import UUID
 

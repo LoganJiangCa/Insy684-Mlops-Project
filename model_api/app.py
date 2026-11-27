@@ -1,11 +1,9 @@
-"""Serve the registered digits model and persist successful predictions."""
-
 import os
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import mlflow
 import mlflow.sklearn
@@ -36,22 +34,6 @@ class Settings:
     model_version: str = "1"
     cors_origins: tuple[str, ...] = ()
 
-    @classmethod
-    def from_env(cls):
-        if not os.environ.get("DATABASE_URL"):
-            raise ValueError("Set DATABASE_URL to a PostgreSQL connection URL.")
-        return cls(
-            database_url=os.environ["DATABASE_URL"],
-            tracking_uri=os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
-            model_name=os.getenv("MODEL_NAME", "digits-decision-tree"),
-            model_version=os.getenv("MODEL_VERSION", "1"),
-            cors_origins=tuple(
-                value.strip()
-                for value in os.getenv("CORS_ORIGINS", "").split(",")
-                if value.strip()
-            ),
-        )
-
 
 Pixel = Annotated[StrictFloat | StrictInt, Field(allow_inf_nan=False)]
 
@@ -62,19 +44,22 @@ class PredictionRequest(BaseModel):
     true_label: Annotated[StrictInt, Field(ge=0, le=9)] | None = None
 
 
-class PredictionResponse(BaseModel):
-    request_id: UUID
-    prediction: int
-    model_name: str
-    model_version: str
-
-
 def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or Settings.from_env()
+    if settings is None:
+        settings = Settings(
+            database_url=os.environ["DATABASE_URL"],
+            tracking_uri=os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
+            model_name=os.getenv("MODEL_NAME", "digits-decision-tree"),
+            model_version=os.getenv("MODEL_VERSION", "1"),
+            cors_origins=tuple(
+                origin.strip()
+                for origin in os.getenv("CORS_ORIGINS", "").split(",")
+                if origin.strip()
+            ),
+        )
     database_url = make_url(settings.database_url)
     if database_url.get_backend_name() != "postgresql":
         raise ValueError("DATABASE_URL must use PostgreSQL.")
-    # Use psycopg 3 even when a teammate supplies a plain postgresql:// URL.
     database_url = database_url.set(drivername="postgresql+psycopg")
     if not settings.model_version.isdecimal():
         raise ValueError("MODEL_VERSION must be a numeric registered version.")
@@ -164,7 +149,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             generate_latest(registry), headers={"Content-Type": CONTENT_TYPE_LATEST}
         )
 
-    @app.post("/predict", response_model=PredictionResponse)
+    @app.post("/predict")
     def predict(payload: PredictionRequest):
         started = time.perf_counter()
         try:
@@ -193,11 +178,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(
                 503, "Prediction could not be saved. Please retry."
             ) from None
-        return PredictionResponse(
-            request_id=request_id,
-            prediction=prediction,
-            model_name=settings.model_name,
-            model_version=settings.model_version,
-        )
+        return {
+            "request_id": str(request_id),
+            "prediction": prediction,
+            "model_name": settings.model_name,
+            "model_version": settings.model_version,
+        }
 
     return app

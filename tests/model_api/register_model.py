@@ -1,5 +1,3 @@
-"""Build a small *test fixture*, not a replacement for Logan's training flow."""
-
 import json
 import os
 from pathlib import Path
