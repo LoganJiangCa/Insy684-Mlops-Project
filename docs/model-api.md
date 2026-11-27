@@ -149,8 +149,8 @@ for the initial image/dependency downloads. From the repository root:
 ```bash
 # Disposable test password only; no external account or cloud service is used.
 export POSTGRES_PASSWORD=disposable-local-test-password
-docker compose -f compose.api-test.yml up -d --build --wait --wait-timeout 240 api
-docker compose -f compose.api-test.yml run --build --rm tests
+docker compose -p api-check -f compose.api-test.yml up -d --build --wait --wait-timeout 240 api
+docker compose -p api-check -f compose.api-test.yml run --build --rm tests
 ```
 
 A passing test confirms a real container prediction, its database record,
@@ -158,13 +158,13 @@ validation rejection and exported metrics. You can also open
 `http://localhost:8000/docs` while the stack is running. Always clean up after:
 
 ```bash
-docker compose -f compose.api-test.yml down -v --remove-orphans
+docker compose -p api-check -f compose.api-test.yml down -v --remove-orphans
 unset POSTGRES_PASSWORD
 ```
 
 The test database container has no persistent data volume. `down -v` removes
-the fixture model volume too. Use a separate Compose project name (`-p api-check`)
-if another stack is already using these service names, and free/change port 8000.
+the fixture model volume too. The commands use the isolated Compose project `api-check`; free/change port
+8000 if another service already occupies it.
 
 ## Automated checks
 

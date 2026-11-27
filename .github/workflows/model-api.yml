@@ -44,12 +44,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Start API container with registered fixture and PostgreSQL
-        run: docker compose -f compose.api-test.yml up -d --build --wait --wait-timeout 240 api
+        run: docker compose -p api-check -f compose.api-test.yml up -d --build --wait --wait-timeout 240 api
       - name: Call the API container and check database and metrics
-        run: docker compose -f compose.api-test.yml run --build --rm tests
+        run: docker compose -p api-check -f compose.api-test.yml run --build --rm tests
       - name: Show container logs on failure
         if: failure()
-        run: docker compose -f compose.api-test.yml logs --no-color
+        run: docker compose -p api-check -f compose.api-test.yml logs --no-color
       - name: Remove disposable resources
         if: always()
-        run: docker compose -f compose.api-test.yml down -v --remove-orphans
+        run: docker compose -p api-check -f compose.api-test.yml down -v --remove-orphans
