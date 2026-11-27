@@ -1,4 +1,10 @@
 # insy684-mlops-project
+
+## Model API (Dario)
+
+Loads the registered digits model, serves `POST /predict`, saves predictions to
+PostgreSQL, and exposes `/metrics`. See [setup](docs/model-api.md).
+
 ## Planned Architecture
 
 ```mermaid
